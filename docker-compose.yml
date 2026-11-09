@@ -1,0 +1,15 @@
+services:
+  db:
+    image: postgres:16
+    container_name: pii-postgres
+    environment:
+      POSTGRES_USER: pii
+      POSTGRES_PASSWORD: pii_pass
+      POSTGRES_DB: pii_scrubber
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+
+volumes:
+  pgdata:
