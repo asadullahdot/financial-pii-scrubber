@@ -10,7 +10,8 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from app.readers import read_file
 from app.scrubber import scrub_text
 
-folder = Path(sys.argv[1] if len(sys.argv) > 1 else "data")
+ROOT = Path(__file__).resolve().parent.parent
+folder = Path(sys.argv[1]) if len(sys.argv) > 1 else ROOT / "data"
 SUSPECT = re.compile(r"(?<![\d.,])\d{6,}(?![\d]|[.,]\d)|\b(?!PKR|USD|xxxx|XXXX|Apr)[A-Za-z]+-?[A-Za-z0-9]*\d{3,}[A-Za-z0-9-]*\b")
 IGNORE = re.compile(r"^(PKR|USD|x-?\d|xxxx|XXXX|Apr-)", re.I)
 
@@ -23,5 +24,3 @@ for path in sorted(p for p in folder.iterdir() if p.is_file() and not p.name.sta
     print("Still present, eyeball these (identifier or fine?):")
     for tok, n in left.most_common():
         print(f"   {tok}  x{n}")
-
-input("Press Enter to end it...")

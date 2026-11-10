@@ -12,8 +12,8 @@ import pytest
 
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
-from app.engine import scrub_folder          # noqa: E402
-from app.scrubber import scrub_text          # noqa: E402
+from app.engine import scrub_folder
+from app.scrubber import scrub_text
 
 # ---------------------------------------------------------------- Layer 1
 # (input, substring that must be GONE, placeholder that must appear)
