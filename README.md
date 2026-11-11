@@ -2,7 +2,7 @@
 
 Scrubs bank and wallet statements (PDF, DOCX, CSV, TXT, XLSX) **locally**, stores only the scrubbed text in PostgreSQL, then analyses it with Groq and lets you chat about it. Raw statements never leave the machine and are never written to the database.
 
-GitHub: `<add the public repository link here>`
+GitHub: `https://github.com/asadullahdot/financial-pii-scrubber`
 
 ## Approach (and limits)
 
