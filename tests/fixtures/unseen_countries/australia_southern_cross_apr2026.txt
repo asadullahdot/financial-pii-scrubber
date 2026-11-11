@@ -1,0 +1,21 @@
+Southern Cross Bank - Everyday Account Statement
+Account name: Jessica Anne Tan
+Address: Unit 5/22 Wattle Street, Surry Hills NSW 2010
+BSB: 062-000   Account number: 1234 5678
+Tax File Number: 123 456 782
+Mobile: 0412 345 678    Home: (02) 9374 4000
+International: +61 412 345 678
+Email: jessica.tan@email.com.au
+PayID: 0412 345 678
+Card: Visa Debit xxxx 4321
+
+01 Apr 2026  DIRECT CREDIT ACME LOGISTICS PTY LTD SALARY REF 90017788665   +$4,250.00   $6,120.50
+02 Apr 2026  EFTPOS WOOLWORTHS 1234 BONDI NSW AU                              -$154.30    $5,966.20
+04 Apr 2026  BPAY BILLER 12345 AGL ENERGY REF 987654321                       -$212.45    $5,753.75
+06 Apr 2026  OSKO PAYMENT TO DANIEL TAN PayID daniel.tan@email.com.au         -$300.00    $5,453.75
+09 Apr 2026  UBER *TRIP SYDNEY AU                                              -$27.80    $5,425.95
+12 Apr 2026  NETFLIX.COM                                                       -$16.99    $5,408.96
+15 Apr 2026  COLES EXPRESS SURRY HILLS NSW                                     -$48.20    $5,360.76
+18 Apr 2026  ATM WITHDRAWAL CBD SYDNEY NSW                                    -$200.00    $5,160.76
+22 Apr 2026  OSKO PAYMENT FROM MARK ELLIS PayID 0433 221 100                  +$120.00    $5,280.76
+27 Apr 2026  INTEREST PAID                                                      +$2.31    $5,283.07

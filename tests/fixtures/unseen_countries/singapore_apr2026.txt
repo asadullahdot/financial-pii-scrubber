@@ -1,0 +1,14 @@
+Lion City Bank - Savings Statement (April 2026)
+Name: Wei Ming Lim
+NRIC/FIN: S1234567D
+Mobile: +65 9123 4567   Home: 6234 5678
+Email: weiming.lim@sgmail.com.sg
+Account No. 123-456-789-0
+Address: Blk 123 Ang Mo Kio Avenue 3 #12-34, Singapore 560123
+PayNow UEN: 201912345K
+
+01 Apr 2026  GIRO SALARY BRIGHTWAVE PTE LTD                      +S$5,200.00   S$7,310.55
+03 Apr 2026  NETS FAIRPRICE XTRA TAMPINES                          -S$86.40    S$7,224.15
+05 Apr 2026  PAYNOW TO TAN MEI LING 91234567 REF 20260405AB99     -S$150.00    S$7,074.15
+08 Apr 2026  GRAB* 7-ELEVEN CHANGI                                  -S$12.30    S$7,061.85
+11 Apr 2026  SPOTIFY SINGAPORE                                       -S$9.99    S$7,051.86

@@ -1,0 +1,24 @@
+Gulf Horizon Bank PJSC - Statement of Account
+Statement period: 01/04/2026 to 30/04/2026
+Account Holder: Omar Khalid Al Mansoori
+Address: Villa 14, Street 22, Al Barsha 1, Dubai, United Arab Emirates
+Emirates ID: 784-1988-4567123-5
+Mobile: +971 50 123 4567    Landline: 04 345 6789
+Email: omar.mansoori@gulfmail.ae
+Account No: 1012345678901
+IBAN: AE07 0331 2345 6789 0123 456
+SWIFT/BIC: GHBKAEAD
+Customer VAT TRN: 100234567890003
+
+Date        Description                                              Debit       Credit      Balance
+02/04/2026  SALARY TRANSFER DUBAI TECH SOLUTIONS FZ LLC REF 20260402887766      0.00   12,500.00   18,230.40
+03/04/2026  CARREFOUR MALL OF THE EMIRATES DUBAI ARE Card 5425 2334 3010 9903   312.75       0.00   17,917.65
+05/04/2026  DEWA BILL PAYMENT ACC 5566778899                                    486.20       0.00   17,431.45
+07/04/2026  TALABAT FOOD ORDER DUBAI                                              64.00       0.00   17,367.45
+09/04/2026  IPI TRANSFER TO FATIMA AL HASHIMI IBAN AE460260001234567890123        2,000.00       0.00   15,367.45
+11/04/2026  NETFLIX.COM LOS GATOS USA                                             55.00       0.00   15,312.45
+14/04/2026  CAREEM RIDE DUBAI                                                     38.50       0.00   15,273.95
+18/04/2026  ATM WDL ENBD ATM DUBAI MARINA Card ending 9903 TRACE 884433221100   1,000.00       0.00   14,273.95
+21/04/2026  NOON.COM ORDER 7766554433 DUBAI                                     219.00       0.00   14,054.95
+25/04/2026  WALLET TOPUP +971 55 987 6543                                        100.00       0.00   13,954.95
+28/04/2026  SALIK TOLL RECHARGE                                                  50.00       0.00   13,904.95

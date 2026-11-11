@@ -1,0 +1,11 @@
+M-PESA Statement - April 2026
+Customer Name: Wanjiru Grace Kamau
+Mobile Number: 0712 345 678
+National ID No: 28123456
+Email: wanjiru.kamau@nairobimail.co.ke
+
+Receipt No.   Completion Time        Details                                              Paid In     Withdrawn   Balance
+SDF1AB23CD    2026-04-02 09:14:22    Funds received from 254722345678 - JOHN KAMAU        5,000.00                14,250.50
+SDF2EF45GH    2026-04-03 18:40:05    Customer Payment to NAIVAS SUPERMARKET - WESTLANDS               1,245.00    13,005.50
+SDF3IJ67KL    2026-04-06 12:01:11    Pay Bill to 888880 KPLC PREPAID Acc. 14123456789                   1,000.00    12,005.50
+SDF4MN89OP    2026-04-09 07:30:45    Customer Transfer to 0722 987 654 - MARY WAMBUI                    2,500.00     9,505.50

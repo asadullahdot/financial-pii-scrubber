@@ -246,6 +246,11 @@ def norm(s: str) -> str:
 NUMBER_RE = re.compile(r"\d{1,3}(?:,\d{2,3})+(?:\.\d+)?|\d{1,3}(?:\.\d{3})+(?:,\d{1,2})?|\d+(?:[.,]\d+)?")
 
 
+# A number whose thousands are separated by a space.  numbers_in() accepts it IN ADDITION to the
+# pieces ("1" "245,60"), so a line such as "ROW 5 100.00" still offers 100.00 as an amount.
+SPACED_NUMBER_RE = re.compile(r"(?<![\d.,])\d{1,3}(?:[  ]\d{3})+(?:[.,]\d{1,2})?(?!\d)")
+
+
 def _token_values(tok: str) -> set[float]:
     """The possible values of ONE numeric token: read as 1,234.56 (US/Indian)
     and as 1.234,56 (European)."""
@@ -264,6 +269,8 @@ def numbers_in(text: str) -> set[float]:
     found = set()
     for tok in NUMBER_RE.findall(text):
         found |= _token_values(tok)
+    for tok in SPACED_NUMBER_RE.findall(text):           # "28 450,00" (South Africa, France): one number
+        found |= _token_values(re.sub(r"[  ]", "", tok))
     return found
 
 

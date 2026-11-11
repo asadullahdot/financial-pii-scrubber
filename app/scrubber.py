@@ -127,20 +127,37 @@ def scrub_text(text: str) -> str:
 
     # Other routing identifiers: US routing/ABA, CA transit + institution,
     # DE BLZ, MICR, AU BSB.  Value must contain at least 3 digits.
-    t = _sub(r"\b(routing(?:\s*(?:number|no\.?))?|aba|transit|institution|blz|micr|bsb)"
-             r"(\s*[:,#]?\s*)\d[\d -]{1,}\d", r"\1\2<ROUTING_ID>", t, I)
+    # Digit groups below are joined by ONE optional space or dash (not "[\d -]+"), so a
+    # value followed by wide column padding ("ACC 5566778899   486.20") cannot swallow
+    # the next column.
+    t = _sub(r"\b(routing(?:\s*(?:number|no\.?))?|aba|transit|institution|blz|micr|bsb|"
+             r"branch\s*code|bank\s*code|clearing\s*(?:number|no\.?))"
+             r"(\s*[:,#]?\s*)\d(?:[ -]?\d){2,}", r"\1\2<ROUTING_ID>", t, I)
 
-    # National IDs introduced by a label: SSN, SIN, Steuer-ID, Aadhaar, ...
+    # National IDs introduced by a label: SSN, SIN, Steuer-ID, Aadhaar, Iqama, TFN ...
     # "(?:\s+on\s+file)?" allows text like "SSN on file: 078-05-1120".
-    t = _sub(r"\b(ssn|sin|nin|tin|tax\s*id|steuer-?id|aadhaa?r|cnic|national\s*id)"
-             r"((?:\s+on\s+file)?\s*[:,#]?\s*)\d[\d -]{6,}\d", r"\1\2<NATIONAL_ID>", t, I)
+    t = _sub(r"\b(ssn|sin|nin|tin|tax\s*id|tax\s*file\s*number|tfn|steuer-?id|aadhaa?r|cnic|"
+             r"iqama(?:\s*(?:no\.?|number))?|emirates\s*id|id\s*(?:number|no\.?)|"
+             r"national\s*(?:id|identity)(?:\s*(?:no\.?|number))?)"
+             r"((?:\s+on\s+file)?\s*[:,#]?\s*)\d(?:[ -]?\d){6,}", r"\1\2<NATIONAL_ID>", t, I)
+
+    # Passport number: letters+digits after the label ("Passport No: A1234567").
+    t = _sub(r"\b(passport(?:\s*(?:no\.?|number))?)(\s*[:,#]\s*)(?=[A-Z0-9]*\d)[A-Z0-9]{6,9}\b",
+             r"\1\2<NATIONAL_ID>", t, I)
+
+    # Phone numbers introduced by a label (works for "Mobile: ..." and CSV "Mobile,...").
+    # A label makes the value certain, so local formats with no international prefix are
+    # caught too.  The value may hold spaces, dots, dashes, slashes and brackets, never a newline.
+    t = _sub(r"\b(mobile|cell|phone|tel(?:ephone)?|landline|whatsapp|fax|"
+             r"(?:alt(?:ernate)?|home|work|office)(?:\s*(?:mobile|phone|tel))?|contact\s*(?:no\.?|number))"
+             r"((?:\s*(?:no\.?|number))?\s*[#:,]\s*)\+?\d[\d ()./-]{5,}\d", r"\1\2<PHONE>", t, I)
 
     # Account numbers: "A/C No", "Account Number", "ACC", "Kontonummer",
     # "Consumer Number", "Customer ID", ...  The value must START with a digit,
     # so "Account Holder: Bilal" is not touched (names must survive).
-    t = _sub(r"(a/c\s*no\.?|acc(?:ount)?(?:\s*(?:no\.?|number|num|#))?|konto(?:nummer)?|"
+    t = _sub(r"(a/c\s*no\.?|acc(?:ount)?(?:\s*(?:no\.?|number|num|#))?|konto(?:nummer)?|nuban|"
              r"wallet\s*account\s*number|consumer(?:\s*(?:number|no\.?))?|customer\s*id)"
-             r"(\s*[:,#]?\s*)\d[\d -]{3,}\d", r"\1\2<ACCOUNT_ID>", t, I)
+             r"(\s*[:,#]?\s*)\d(?:[ -]?\d){4,}", r"\1\2<ACCOUNT_ID>", t, I)
 
     # Card expiry date: "expires 09/28".
     t = _sub(r"\bexpires?\s+\d{2}/\d{2,4}", "expires <CARD_EXPIRY>", t, I)
@@ -187,6 +204,9 @@ def scrub_text(text: str) -> str:
     # is NOT the first/last 12 digits of a 16-digit card number.
     t = _sub(r"(?<!\d[ -])\b[2-9]\d{3}[ -]\d{4}[ -]\d{4}\b(?![ -]\d)", "<NATIONAL_ID>", t)
     t = _sub(r"\b784-?\d{4}-?\d{7}-?\d\b", "<NATIONAL_ID>", t)  # UAE Emirates ID: 784-YYYY-NNNNNNN-C
+    t = _sub(r"\b[STFGM]\d{7}[A-Z]\b", "<NATIONAL_ID>", t)             # Singapore NRIC/FIN: S1234567D
+    t = _sub(r"\b\d{3}\.\d{3}\.\d{3}-\d{2}\b", "<NATIONAL_ID>", t)       # Brazil CPF: 123.456.789-09
+    t = _sub(r"(?<![\d-])(?:19|20)?\d{6}[-+]\d{4}(?![\d-])", "<NATIONAL_ID>", t)  # Sweden personnummer: 19850101-1234
 
     # ----------------------------------------------------------------------
     # RULE 5: CARD NUMBERS
@@ -195,6 +215,8 @@ def scrub_text(text: str) -> str:
     # ----------------------------------------------------------------------
     # Partly masked with leading digits visible: "521234******2070"
     t = _sub(r"\b\d{4,6}[ -]?[*Xx•]{4,}[ -]?\d{4}\b", "<CARD_NUMBER>", t)
+    # ... and the grouped form "4847 12** **** 3456" (first 6 digits, then masked groups).
+    t = _sub(r"\b\d{4}[ -]?\d{2}[*Xx•]{2}[ -]?[*Xx•]{4}[ -]?\d{4}\b", "<CARD_NUMBER>", t)
     # 4 groups of 4 digits ("4111 1111 1111 1111"): <CARD_NUMBER> if Luhn-valid,
     # otherwise it is more likely a bank account number.
     t = _sub(r"\b(?:\d{4}[ -]){3}\d{4}\b",
@@ -239,15 +261,23 @@ def scrub_text(text: str) -> str:
     # International: +92-300-1234567, +44 7700 900123, +1 (512) 555-0148
     # The separator is a space, tab, dot or dash but NOT a newline: "+44 7700 900123\n01 Apr 2026"
     # must not swallow the next line's date.
-    t = _sub(r"(?<![\w.,])\+\d{1,3}(?:[ \t .-]?(?:\(\d{1,5}\)|\d{1,5})){2,5}", phone, t)
-    t = _sub(r"(?<![\w.,])\(0\d{3}\)\s?\d{7}\b", "<PHONE>", t)    # PK: (0315) 1234567
-    t = _sub(r"(?<![\w.,])0\d{3}[ -]?\d{7}\b", "<PHONE>", t)      # PK: 0300-1234567
-    t = _sub(r"(?<![\w.,])0\d{4}[ ]?\d{6}\b", "<PHONE>", t)       # UK: 07700 900123
-    t = _sub(r"(?<![\w.,])\(?\d{3}\)?[ .-]\d{3}[ .-]\d{4}\b", "<PHONE>", t)  # US/CA: 416-555-0177
-    t = _sub(r"(?<![\w.,])04\d{2}[ ]?\d{3}[ ]?\d{3}\b", "<PHONE>", t)        # AU mobile: 0412 345 678
-    t = _sub(r"(?<![\w.,])\(0\d\)[ ]?\d{4}[ ]?\d{4}\b", "<PHONE>", t)        # AU landline: (02) 9374 4000
-    t = _sub(r"(?<![\w.,])0[1-9](?:[ .-]?\d{2}){4}\b", "<PHONE>", t)         # FR: 01 42 68 53 00
-    t = _sub(r"(?<![\w.,])0\d{2,4}[ /-]\d{6,9}\b", "<PHONE>", t)             # DE local: 030 12345678
+    # Look-behind "(?<![\w.])(?<!\d,)": not glued to a word or a dot, and not the tail of a
+    # thousands-grouped amount ("1,234"), but a number right after a CSV separator
+    # ("Mobile,0501234567" or ",+966 50 765 4321") is fine.
+    t = _sub(r"(?<![\w.])(?<!\d,)\+\d{1,3}(?:[ \t .-]?(?:\(\d{1,5}\)|\d{1,5})){2,5}", phone, t)
+    t = _sub(r"(?<![\w.])(?<!\d,)\(0\d{3}\)\s?\d{7}\b", "<PHONE>", t)    # PK: (0315) 1234567
+    t = _sub(r"(?<![\w.])(?<!\d,)0\d{3}[ -]?\d{7}\b", "<PHONE>", t)      # PK: 0300-1234567
+    t = _sub(r"(?<![\w.])(?<!\d,)0\d{4}[ ]?\d{6}\b", "<PHONE>", t)       # UK: 07700 900123
+    t = _sub(r"(?<![\w.])(?<!\d,)\(?\d{3}\)?[ .-]\d{3}[ .-]\d{4}\b", "<PHONE>", t)  # US/CA: 416-555-0177
+    t = _sub(r"(?<![\w.])(?<!\d,)04\d{2}[ ]?\d{3}[ ]?\d{3}\b", "<PHONE>", t)        # AU mobile: 0412 345 678
+    t = _sub(r"(?<![\w.])(?<!\d,)\(0\d\)[ ]?\d{4}[ ]?\d{4}\b", "<PHONE>", t)        # AU landline: (02) 9374 4000
+    t = _sub(r"(?<![\w.])(?<!\d,)0\d{3}[ -]\d{3}[ -]\d{3}\b", "<PHONE>", t)               # KE/NG/AU style: 0722 987 654
+    t = _sub(r"(?<![\w.])(?<!\d,)0[2-9][ -]\d{4}[ -]\d{4}\b", "<PHONE>", t)        # AU landline, no brackets: 02 9374 4000
+    t = _sub(r"(?<![\w.])(?<!\d,)0[2-9][ -]\d{3}[ -]\d{4}\b", "<PHONE>", t)        # UAE landline: 04 345 6789
+    t = _sub(r"(?<![\w.])(?<!\d,)05\d[ -]\d{3}[ -]\d{4}\b", "<PHONE>", t)        # UAE mobile: 055 987 6543
+    t = _sub(r"(?<![\w.])(?<!\d,)05\d{8}\b", "<PHONE>", t)        # SA mobile: 0501234567
+    t = _sub(r"(?<![\w.])(?<!\d,)0[1-9](?:[ .-]?\d{2}){4}\b", "<PHONE>", t)         # FR: 01 42 68 53 00
+    t = _sub(r"(?<![\w.])(?<!\d,)0\d{2,4}[ /-]\d{6,9}\b", "<PHONE>", t)             # DE local: 030 12345678
 
     # ----------------------------------------------------------------------
     # RULE 8: REFERENCE / TRACE / TRANSACTION IDs
@@ -265,7 +295,10 @@ def scrub_text(text: str) -> str:
     t = _sub(r"\b(?=[A-Za-z0-9]*\d)(?=[A-Za-z0-9]*[A-Za-z])[A-Za-z0-9]{12,}\b", "<REF_ID>", t)
     # Last resort: any run of 7+ plain digits.  The guards skip digits that are
     # part of an amount ("1,234,567.89" or "12345678.00").
-    t = _sub(r"(?<![\d.,])\d{7,}(?![\d]|[.,]\d)", "<REF_ID>", t)
+    # A run of 7+ digits can never be a thousands-grouped number (groups have 3 digits), so
+    # "1234567890,380.00" in a CSV is an ID followed by a column.  A decimal comma
+    # ("1234567,89") or point ("1234567.89") still marks an amount and is left alone.
+    t = _sub(r"(?<![\d.])(?<!\d,)\d{7,}(?!\d|\.\d|,\d{1,2}(?!\d))", "<REF_ID>", t)
 
     # ----------------------------------------------------------------------
     # RULE 9: IP ADDRESSES  (four numbers 0-255 separated by dots)

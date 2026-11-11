@@ -20,14 +20,16 @@ from dataclasses import dataclass, field
 
 MONTHS = r"(?:jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*"
 DATE_RE = re.compile(
-    rf"\d{{4}}-\d{{2}}-\d{{2}}(?:[ T]\d{{2}}:\d{{2}}(?::\d{{2}})?)?"      # 2026-04-01 08:55:12
+    rf"\d{{4}}[-/]\d{{2}}[-/]\d{{2}}(?:[ T]\d{{2}}:\d{{2}}(?::\d{{2}})?)?"  # 2026-04-01 08:55:12 / 2026/04/01
     rf"|\d{{1,2}}[ -]{MONTHS}[ -]\d{{4}}"                                    # 01 Apr 2026 / 01-Apr-2026
     rf"|\d{{1,2}}[/.]\d{{1,2}}[/.]\d{{2,4}}", re.I)                         # 04/01/2026, 01.04.2026
 AMOUNT_LIKE = re.compile(r"\d[\d.,]*[.,]\d{2}(?!\d)")                        # a number with 2 decimals
 
-SYMBOLS = {"C$": "CAD", "A$": "AUD", "US$": "USD", "£": "GBP", "$": "USD", "€": "EUR", "₹": "INR"}
-_SYM = r"C\$|A\$|US\$|[£$€₹]"
-_NUM = r"\d[\d.,]*"
+SYMBOLS = {"C$": "CAD", "A$": "AUD", "US$": "USD", "S$": "SGD", "NZ$": "NZD", "HK$": "HKD", "R": "ZAR",
+           "£": "GBP", "$": "USD", "€": "EUR", "₹": "INR"}
+_SYM = r"C\$|A\$|US\$|S\$|NZ\$|HK\$|[£$€₹]|R(?=\s?\d)"
+# one number: "1 245,60" (space-grouped thousands, South Africa/France) or "1,234.56" / "1.234,56" / "61050.00"
+_NUM = r"\d{1,3}(?:[  ]\d{3})+(?:[.,]\d{1,2})?|\d[\d.,]*"
 MONEY_RE = re.compile(rf"^\(?\s*([+\-−–])?\s*(?:({_SYM}|[A-Z]{{3}})\s?)?({_NUM})\s*(?:([A-Z]{{3}}))?\s*\)?$")
 SUFFIX_RE = re.compile(rf"(?:\b([A-Z]{{3}})\s?)?({_NUM}[.,]\d{{2}})\s?(Cr|Dr|CR|DR)\b")
 
@@ -54,6 +56,7 @@ def to_amount(tok: str) -> float | None:
     tok = tok.strip()
     if not re.fullmatch(_NUM, tok):
         return None
+    tok = re.sub(r"[  ]", "", tok)                       # "1 245,60" -> "1245,60"
     last_dot, last_com = tok.rfind("."), tok.rfind(",")
     if last_dot >= 0 and last_com >= 0:                       # both: the later one is the decimal mark
         dec = "." if last_dot > last_com else ","
@@ -240,18 +243,67 @@ def _csv_row(line: str, d: str, idx: dict):
     return money, dm.group(0), desc
 
 
+# ------------------------------------------------------------------ shape 4 and 5: padded text columns
+# 4. "<date> <description> -$154.30   $5,966.20"  an explicitly signed amount then the balance, at the end of the line.
+#    The sign must not be glued to a word ("CHARGES-26 5.00" is not "-26").
+_TRAIL = re.compile(rf"(?<![\w.])([+\-−–]\s?(?:{_SYM})?\s?(?:{_NUM}))\s+(?:(?:{_SYM}|[A-Z]{{3}})\s?)?(?:{_NUM})\s*$")
+# 5. "<date> <description>  0.00  12,500.00  18,230.40"  Debit / Credit / Balance columns, only after a header line
+#    that names them; the side that is not 0.00 gives the direction.
+_AMT2 = rf"(?:(?:{_SYM})\s?)?\d[\d,. ]*[.,]\d{{2}}"
+_THREE = re.compile(rf"\s({_AMT2})\s+({_AMT2})\s+(?:(?:{_SYM}|[A-Z]{{3}})\s?)?(?:{_NUM})\s*$")
+
+
+def _trailing_signed(line: str):
+    dm = DATE_RE.match(line)
+    m = _TRAIL.search(line, dm.end())
+    money = parse_money(m.group(1)) if m else None
+    if not money or not money[1]:
+        return None
+    return dm.group(0), line[dm.end():m.start()], money[0], money[1], money[2]
+
+
+def _is_three_column_header(line: str):
+    """For a text header naming debit, credit and balance columns: True if debit comes first, else
+    False; None if the line is not such a header."""
+    low = line.lower()
+    if DATE_RE.search(line) or not all(re.search(rf"\b{w}\b", low) for w in ("debit", "credit", "balance")):
+        return None
+    return low.index("debit") < low.index("credit")
+
+
+def _three_columns(line: str, debit_first: bool):
+    dm = DATE_RE.match(line)
+    m = _THREE.search(line, dm.end())
+    if not m:
+        return None
+    a, b = parse_money(m.group(1)), parse_money(m.group(2))
+    if not a or not b:
+        return None
+    debit, credit = (a[0], b[0]) if debit_first else (b[0], a[0])
+    if debit > 0 and credit == 0:
+        return dm.group(0), line[dm.end():m.start()], debit, "debit", a[2] or b[2]
+    if credit > 0 and debit == 0:
+        return dm.group(0), line[dm.end():m.start()], credit, "credit", a[2] or b[2]
+    return None
+
+
 # ------------------------------------------------------------------ the parser
 def parse_statement(text: str) -> ParseResult:
     out = ParseResult()
     header = None                                              # (delimiter, columns) while inside a CSV table
+    three = None                                               # debit-first flag while inside a text Debit/Credit/Balance table
     for raw in text.splitlines():
         line = raw.strip()
         if not line:
-            header = None
+            header = three = None
             continue
-        h = _header_columns(line)
+        h = _header_columns(line)                              # a delimited header comes first ...
         if h and not DATE_RE.search(line):
             header = h
+            continue
+        t3 = _is_three_column_header(line)                     # ... then a padded-text one
+        if t3 is not None and not h:
+            three = t3
             continue
         parsed = None
         if header:
@@ -274,6 +326,8 @@ def parse_statement(text: str) -> ParseResult:
                 if amount is not None:
                     parsed = (dm.group(0), line[dm.end():sm.start()], amount,
                               "credit" if sm.group(3).lower() == "cr" else "debit", sm.group(1))
+        if parsed is None and DATE_RE.match(line):
+            parsed = (_three_columns(line, three) if three is not None else None) or _trailing_signed(line)
         if parsed:
             date, desc, amount, direction, cur = parsed
             if amount == 0:

@@ -251,3 +251,61 @@ def test_cheque_lines_get_no_invented_merchant():
 
 def test_two_stacked_prefixes_are_both_stripped():
     assert guess_merchant("POS Paid to IMTIAZ SUPER MARKET, GULSHAN BRANCH KARACHI PK|Visa xxxx2070") == "IMTIAZ SUPER MARKET"
+
+
+# ---------------------------------------------------------------- layouts found with the unseen-country statements
+def test_signed_amount_then_balance_without_pipes():
+    r = parse_statement("02 Apr 2026  EFTPOS WOOLWORTHS 1234 BONDI NSW AU      -$154.30    $5,966.20\n"
+                        "01 Apr 2026  DIRECT CREDIT ACME PTY LTD SALARY      +$4,250.00   $6,120.50\n")
+    assert [(x["amount"], x["direction"], x["currency"]) for x in r.rows] == [
+        (154.3, "debit", "USD"), (4250.0, "credit", "USD")]
+
+
+def test_south_african_rand_with_space_grouped_thousands_and_decimal_comma():
+    r = parse_statement("01 Apr 2026 | SALARY CAPE FRESH FOODS PTY LTD | +R 28 450,00 | R 31 220,15\n"
+                        "02 Apr 2026 | POS PURCHASE WOOLWORTHS | -R 1 245,60 | R 29 974,55\n")
+    assert [(x["amount"], x["direction"], x["currency"]) for x in r.rows] == [
+        (28450.0, "credit", "ZAR"), (1245.6, "debit", "ZAR")]
+
+
+def test_singapore_dollar_and_slash_year_first_dates():
+    r = parse_statement("03 Apr 2026  NETS FAIRPRICE XTRA TAMPINES      -S$86.40    S$7,224.15\n"
+                        "2026/04/02  OXXO TIENDA CDMX    -$85.00    $915.00\n")
+    assert [(x["amount"], x["currency"]) for x in r.rows] == [(86.4, "SGD"), (85.0, "USD")]
+
+
+def test_text_debit_credit_balance_columns_use_the_nonzero_side():
+    text = ("Date  Description  Debit  Credit  Balance\n"
+            "02/04/2026  SALARY DUBAI TECH FZ LLC      0.00   12,500.00   18,230.40\n"
+            "03/04/2026  CARREFOUR MALL OF THE EMIRATES   312.75       0.00   17,917.65\n")
+    r = parse_statement(text)
+    assert [(x["amount"], x["direction"]) for x in r.rows] == [(12500.0, "credit"), (312.75, "debit")]
+
+
+def test_three_columns_are_only_trusted_after_a_header_that_names_them():
+    r = parse_statement("03/04/2026  CARREFOUR MALL   312.75   0.00   17,917.65\n")
+    assert r.rows == [] and len(r.leftover) == 1
+
+
+def test_a_sign_glued_to_a_word_is_not_an_amount_sign():
+    r = parse_statement("29 Apr 2026 SMS CHARGES-26 5.00 1,000.00\n")
+    assert r.rows == []                                                   # left for the model, not read as -26
+
+
+def test_a_csv_header_with_debit_and_credit_still_wins_over_the_text_header_rule():
+    text = "Date,Description,Debit,Credit,Balance,Currency\n2026-04-02,MADA POS PANDA,215.40,,13994.95,SAR\n"
+    r = parse_statement(text)
+    assert [(x["amount"], x["direction"]) for x in r.rows] == [(215.4, "debit")]
+
+
+def test_verification_accepts_space_grouped_amounts_but_still_rejects_wrong_ones():
+    from collections import Counter
+    line = "01 Apr 2026 | SALARY CAPE FRESH FOODS PTY LTD | +R 28 450,00 | R 31 220,15"
+    assert 28450.0 in A.numbers_in(line) and 31220.15 in A.numbers_in(line)
+    assert 100.0 in A.numbers_in("ROW 5 100.00")                           # the pieces are still offered
+    ok = [dict(date="01 Apr 2026", description="x", merchant=None, amount=28450.0, direction="credit",
+               currency="ZAR", category="income", evidence="+R 28 450,00")]
+    assert len(A.verify_rows(ok, line, Counter())) == 1
+    bad = [dict(ok[0], amount=28540.0)]
+    stats = Counter()
+    assert A.verify_rows(bad, line, stats) == [] and stats["dropped_amount_not_in_evidence"] == 1
