@@ -200,3 +200,13 @@ def test_regression_removed(combined, token):
 @pytest.mark.parametrize("token", REGRESSION_KEEP)
 def test_regression_kept(combined, token):
     assert token in combined
+
+
+def test_international_phone_does_not_swallow_the_next_line():
+    """Found in the browser with a synthetic UK statement: the separator class included a newline,
+    so '+44 7700 900123' + newline + '01 Apr 2026' lost the date's day and the line break."""
+    from app.scrubber import scrub_text
+    assert scrub_text("Phone: +44 7700 900123\n01 Apr 2026 | X") == "Phone: <PHONE>\n01 Apr 2026 | X"
+    assert scrub_text("Cell # +92 300 1234567\n05 Apr 2026 y") == "Cell # <PHONE>\n05 Apr 2026 y"
+    assert scrub_text("Phone +1 (415) 555-2671\n04/01/2026 | w") == "Phone <PHONE>\n04/01/2026 | w"
+    assert scrub_text("Tel: +92-300-1234567 ok") == "Tel: <PHONE> ok"

@@ -237,7 +237,9 @@ def scrub_text(text: str) -> str:
         return "<PHONE>"
 
     # International: +92-300-1234567, +44 7700 900123, +1 (512) 555-0148
-    t = _sub(r"(?<![\w.,])\+\d{1,3}(?:[\s.-]?(?:\(\d{1,5}\)|\d{1,5})){2,5}", phone, t)
+    # The separator is a space, tab, dot or dash but NOT a newline: "+44 7700 900123\n01 Apr 2026"
+    # must not swallow the next line's date.
+    t = _sub(r"(?<![\w.,])\+\d{1,3}(?:[ \t .-]?(?:\(\d{1,5}\)|\d{1,5})){2,5}", phone, t)
     t = _sub(r"(?<![\w.,])\(0\d{3}\)\s?\d{7}\b", "<PHONE>", t)    # PK: (0315) 1234567
     t = _sub(r"(?<![\w.,])0\d{3}[ -]?\d{7}\b", "<PHONE>", t)      # PK: 0300-1234567
     t = _sub(r"(?<![\w.,])0\d{4}[ ]?\d{6}\b", "<PHONE>", t)       # UK: 07700 900123

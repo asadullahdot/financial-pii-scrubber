@@ -1,0 +1,90 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Statement Scrubber</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header>
+  <h1>Statement Scrubber</h1>
+  <p class="sub">Raw statements are scrubbed on this machine. Only the scrubbed text is stored and analysed.</p>
+  <div id="status" class="status" aria-live="polite"></div>
+</header>
+
+<main>
+  <!-- 1. SCRUB -->
+  <section id="s1">
+    <h2><span class="n">1</span> Scrub</h2>
+    <div class="row">
+      <input id="files" type="file" multiple accept=".pdf,.docx,.csv,.txt,.xlsx">
+      <button id="btn-upload" class="primary">Scrub selected files</button>
+      <span class="or">or</span>
+      <button id="btn-folder">Scrub the <code>data/</code> folder</button>
+    </div>
+    <div class="row small">
+      <label for="runs">Earlier runs</label>
+      <select id="runs"><option value="">-</option></select>
+      <button id="btn-delete" class="danger" disabled>Delete run</button>
+    </div>
+    <div id="run-info" hidden>
+      <div class="row">
+        <strong id="run-title"></strong>
+        <a id="dl" class="link" download>Download combined text</a>
+      </div>
+      <div id="chips" class="chips"></div>
+      <table id="files-table" class="tbl">
+        <thead><tr><th>File</th><th>Type</th><th>Status</th><th class="num">Characters</th><th>Removed</th></tr></thead>
+        <tbody></tbody>
+      </table>
+      <details open>
+        <summary>Combined scrubbed output</summary>
+        <pre id="combined"></pre>
+      </details>
+    </div>
+  </section>
+
+  <!-- 2. ANALYSIS -->
+  <section id="s2" class="locked">
+    <h2><span class="n">2</span> Analysis</h2>
+    <div class="row">
+      <button id="btn-analyze" class="primary" disabled>Analyse with Groq</button>
+      <label for="mode" class="small">Mode</label>
+      <select id="mode">
+        <option value="hybrid">hybrid: local parser + model for the rest</option>
+        <option value="llm">llm: model reads every line</option>
+        <option value="local">local: no model call</option>
+      </select>
+      <span id="timer" class="small"></span>
+    </div>
+    <div id="an-msg" class="notice" hidden></div>
+    <div id="an" hidden>
+      <div id="an-chips" class="chips"></div>
+      <div id="tabs" class="tabs" role="tablist"></div>
+      <div id="cur-cards" class="cards"></div>
+      <div class="grid2">
+        <div><h3>Spending by category</h3><div id="cats"></div></div>
+        <div><h3>Top merchants</h3><table id="merch" class="tbl"><tbody></tbody></table></div>
+      </div>
+      <h3>Insights</h3>
+      <ul id="insights"></ul>
+      <div id="flags"></div>
+    </div>
+  </section>
+
+  <!-- 3. CHAT -->
+  <section id="s3" class="locked">
+    <h2><span class="n">3</span> Chat about your data</h2>
+    <div id="chat-log" class="chat-log" aria-live="polite"></div>
+    <form id="chat-form" class="row">
+      <input id="q" type="text" maxlength="500" placeholder="e.g. How much did I spend on food? Which merchant did I pay most often?" autocomplete="off" disabled>
+      <button id="btn-send" class="primary" disabled>Ask</button>
+      <button id="btn-clear" type="button" class="small-btn" disabled>Clear chat</button>
+    </form>
+    <p class="small hint">Answers use only your scrubbed transactions. Every number is checked by the app before it is shown. Identifiers you type are scrubbed first.</p>
+  </section>
+</main>
+<script src="app.js"></script>
+</body>
+</html>

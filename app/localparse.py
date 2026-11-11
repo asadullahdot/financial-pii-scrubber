@@ -167,6 +167,8 @@ def guess_merchant(description: str) -> str | None:
         s = _PREFIX.sub("", s, count=1)
     elif (m := _PREFIX_ANY.search(s)):                        # CSV rows start with the "type" column
         s = s[m.end():]
+    if (m := _PREFIX_ANY.match(s)):                           # "POS" + "Paid to X": strip the second prefix too
+        s = s[m.end():]
     s = _STOP.split(s, maxsplit=1)[0]
     words = [w for w in s.split() if not re.fullmatch(r"[#\d\-/:.]+", w)][:4]
     name = " ".join(words).strip(" -:/")

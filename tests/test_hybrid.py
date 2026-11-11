@@ -247,3 +247,7 @@ def test_mode_must_be_known():
 
 def test_cheque_lines_get_no_invented_merchant():
     assert guess_merchant("CHECK #1102 IMAGE REF <REF_ID>") is None
+
+
+def test_two_stacked_prefixes_are_both_stripped():
+    assert guess_merchant("POS Paid to IMTIAZ SUPER MARKET, GULSHAN BRANCH KARACHI PK|Visa xxxx2070") == "IMTIAZ SUPER MARKET"
