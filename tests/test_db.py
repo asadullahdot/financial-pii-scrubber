@@ -23,6 +23,8 @@ pytestmark = pytest.mark.skipif(not DB_UP, reason="PostgreSQL not reachable")
 
 @pytest.fixture
 def run_id():
+    if not (ROOT / "data").is_dir():
+        pytest.skip("no data/ folder: copy the statements into data/ to run this test")
     db.init_db()
     files = scrub_files(ROOT / "data")
     rid = db.save_run(files)

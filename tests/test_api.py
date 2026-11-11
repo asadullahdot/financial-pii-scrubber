@@ -38,6 +38,8 @@ def cleanup():
 
 
 def _upload_all_data(client):
+    if not any((ROOT / "data").glob("*")) if (ROOT / "data").is_dir() else True:
+        pytest.skip("no data/ folder: copy the statements into data/ to run this test")
     files = [("files", (p.name, p.read_bytes())) for p in sorted((ROOT / "data").iterdir()) if p.is_file()]
     return client.post("/runs", files=files)
 
@@ -74,6 +76,8 @@ def test_get_run_list_and_download(client, cleanup):
 
 
 def test_from_folder_default_and_missing(client, cleanup):
+    if not (ROOT / "data").is_dir():
+        pytest.skip("no data/ folder: copy the statements into data/ to run this test")
     r = client.post("/runs/from-folder", json={})
     assert r.status_code == 201; cleanup.append(r.json()["run_id"])
     assert client.post("/runs/from-folder", json={"folder": "no_such_folder"}).status_code == 404
