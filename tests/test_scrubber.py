@@ -12,8 +12,8 @@ import pytest
 
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
-from app.engine import scrub_folder
-from app.scrubber import scrub_text
+from app.engine import scrub_folder          # noqa: E402
+from app.scrubber import scrub_text          # noqa: E402
 
 # ---------------------------------------------------------------- Layer 1
 # (input, substring that must be GONE, placeholder that must appear)
@@ -69,6 +69,53 @@ KEEP_CASES = [
     ("Branch: Gulshan-e-Iqbal Branch (0114), Karachi", ["Gulshan-e-Iqbal Branch", "Karachi"]),
     ("Account Holder: Priya Raghunathan", ["Priya Raghunathan"]),
 ]
+
+
+# ---- Added after benchmarking on statement styles the rules were NOT tuned on ----
+# Unlabelled address blocks, cashtags, FR/DE phones, AU/UAE/SA formats.
+REMOVE_CASES += [
+    ("Mr Ali Khan\n45 Palm Jumeirah Road\nDubai, UAE", "Palm Jumeirah", "<ADDRESS>"),
+    ("Account holder: Sarah Mitchell\n12 Baker Street\nLondon NW1 6XE", "12 Baker", "<ADDRESS>"),
+    ("Account holder: Sarah Mitchell\n12 Baker Street\nLondon NW1 6XE", "NW1 6XE", "<ADDRESS>"),
+    ("12 BAKER STREET", "BAKER", "<ADDRESS>"),
+    ("350 5th Avenue, New York, NY 10118", "5th Avenue", "<ADDRESS>"),
+    ("7 Elm Ave | Austin TX 78701", "78701", "<ADDRESS>"),
+    ("Home: 221B Rue Lafayette, 75009 Paris, France", "Lafayette", "<ADDRESS>"),
+    ("Home: 221B Rue Lafayette, 75009 Paris, France", "75009", "<ADDRESS>"),
+    ("Bergmannstraße 44, 10961 Berlin", "Bergmann", "<ADDRESS>"),
+    ("House B-47, Street 11, Gulshan Block 6, Karachi", "B-47", "<ADDRESS>"),
+    ("Toronto M5V 2T6", "M5V 2T6", "<ADDRESS>"),
+    ("Cash App $johndoe99 sent $25.00", "johndoe99", "<PAYMENT_HANDLE>"),
+    ("Tel 01 42 68 53 00", "42 68 53", "<PHONE>"),
+    ("Tel 030 12345678", "12345678", "<PHONE>"),
+    ("BSB 062-000 Account 1234 5678 PayID sam@payid.com.au", "1234 5678", "<ACCOUNT_ID>"),
+    ("IBAN SA03 8000 0000 6080 1016 7519", "8000 0000", "<IBAN>"),
+    ("Remitter: ACME LTD, SWIFT/BIC: CITIUS33", "CITIUS33", "<SWIFT_BIC>"),
+]
+
+# Lines that LOOK like addresses but are transactions: must come out unchanged.
+KEEP_UNCHANGED = [
+    "12 Apr 2026 ATM WDL CRESCENT ATM GULSHAN BR Card xxxx8821 Trace",
+    "2026-04-23 20:02:59,POS,PAID TO SHANDAR SHINWARI RESTAURANT NATIONAL HIGHWAY KARACHI PK|Visa xxxx2070",
+    "CHEQUE NO 12345 CLEARING FAVOURING AL-REHMAN",
+    "Transfer 25000 Hamza Qureshi on 2026-04-02",
+    "Paid via PayPal to Netflix.com",
+    "TIM HORTONS #4471 TORONTO ON",
+    "STARBUCKS #08841 AUSTIN TX",
+    "Paid 50 USD to Park Lane Hotel",
+    "Spent 120 on Drive-in Cinema",
+    "Order of 3 items from Oak Road Bakery",
+    "01 Apr 2026 BAL B/F PKR18,450.75",
+    "Rate USD 3.99 @ 278.45 INCL FED",
+    "2 Apr 2026 Square Inc payment",
+    "5 STAR HOTEL ROAD SIDE CAFE",
+    "Paid C$4,880.19 and A$100.00 and $25.00",
+]
+
+
+@pytest.mark.parametrize("line", KEEP_UNCHANGED)
+def test_address_rules_do_not_over_scrub(line):
+    assert scrub_text(line) == line
 
 
 @pytest.mark.parametrize("text,gone,placeholder", REMOVE_CASES)

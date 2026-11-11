@@ -23,6 +23,7 @@ WHY THE ORDER OF THE RULES MATTERS
         7. phone numbers
         8. reference IDs and long numbers
         9. IP addresses
+       10. unlabelled postal addresses (street lines, postcodes, ZIP codes)
 
 WHAT IS DELIBERATELY *NOT* TOUCHED  (it carries analytical value)
     person names, merchant names (even "Netflix.com"), dates, times,
@@ -154,6 +155,9 @@ def scrub_text(text: str) -> str:
     t = _sub(r"[\w.+-]+@[A-Za-z][\w-]*\b(?!\.\w)", "<PAYMENT_HANDLE>", t)
     # Venmo/Cash-App style handle with no name part: "@carlos-r-tx"
     t = _sub(r"(?<![\w@])@[A-Za-z0-9][\w-]{2,}", "<PAYMENT_HANDLE>", t)
+    # Cash App style "$johndoe99".  Must START with a letter so amounts like
+    # "$25.00" and "C$4,880.19" are never touched.
+    t = _sub(r"(?<![\w$])\$[A-Za-z][A-Za-z0-9_]{2,19}\b", "<PAYMENT_HANDLE>", t)
 
     # ----------------------------------------------------------------------
     # RULE 3: IBAN
@@ -240,6 +244,8 @@ def scrub_text(text: str) -> str:
     t = _sub(r"(?<![\w.,])\(?\d{3}\)?[ .-]\d{3}[ .-]\d{4}\b", "<PHONE>", t)  # US/CA: 416-555-0177
     t = _sub(r"(?<![\w.,])04\d{2}[ ]?\d{3}[ ]?\d{3}\b", "<PHONE>", t)        # AU mobile: 0412 345 678
     t = _sub(r"(?<![\w.,])\(0\d\)[ ]?\d{4}[ ]?\d{4}\b", "<PHONE>", t)        # AU landline: (02) 9374 4000
+    t = _sub(r"(?<![\w.,])0[1-9](?:[ .-]?\d{2}){4}\b", "<PHONE>", t)         # FR: 01 42 68 53 00
+    t = _sub(r"(?<![\w.,])0\d{2,4}[ /-]\d{6,9}\b", "<PHONE>", t)             # DE local: 030 12345678
 
     # ----------------------------------------------------------------------
     # RULE 8: REFERENCE / TRACE / TRANSACTION IDs
@@ -263,4 +269,55 @@ def scrub_text(text: str) -> str:
     # RULE 9: IP ADDRESSES  (four numbers 0-255 separated by dots)
     # ----------------------------------------------------------------------
     t = _sub(r"(?<![\d.])(?:\d{1,3}\.){3}\d{1,3}(?![\d.])", "<IP_ADDRESS>", t)
+
+    # ----------------------------------------------------------------------
+    # RULE 10: UNLABELLED POSTAL ADDRESSES
+    # Rule 1 only catches addresses that have a label ("Address: ...").  Many
+    # statements print the address block with NO label, so we also look for the
+    # SHAPE of an address.  This runs LAST, after every other identifier is
+    # already a placeholder, and each pattern is deliberately narrow because a
+    # sloppy street rule would destroy transaction lines such as
+    #     "12 Apr 2026 ATM WDL CRESCENT ATM GULSHAN BR".
+    # Guards used below to prevent that:
+    #   - the house number may not be a year (19xx / 20xx)
+    #   - it may not touch a decimal point or comma (so never part of an amount)
+    #   - a street NAME (1-3 words) must sit between the number and the suffix
+    #   - ambiguous suffixes ("Crescent", "Close", "Dr", "Way", "via") are left out
+    # ----------------------------------------------------------------------
+    # "12 Baker Street", "45 Palm Jumeirah Road", "7 Elm Ave"  (number, name, suffix)
+    #  - street-name words must start with a capital or digit ("Baker", "5th"), so
+    #    ordinary sentences like "3 items from Oak Road Bakery" are not matched
+    #  - the number may not be an amount ("50 USD to Park Lane Hotel")
+    #  - the suffix must END the segment (end of line, comma, pipe, bracket or a
+    #    postcode digit follows), which rejects "5 STAR HOTEL ROAD SIDE CAFE"
+    #    and "120 on Drive-in Cinema" but accepts "12 Baker Street\nLondon"
+    t = _sub(r"(?<![\d.,])\b(?!(?:19|20)\d\d\b)"
+             r"(?!\d{1,5}\s*(?:USD|PKR|EUR|GBP|INR|CAD|AUD|AED|SAR|CHF|JPY|CNY|RS)\b)"
+             r"\d{1,5}[A-Za-z]?(?:[-/]\d{1,4})?,?\s+"
+             r"(?:[A-Z0-9][\w'’.-]*\s+){1,3}"
+             r"(?i:street|st|road|rd|avenue|ave|lane|boulevard|blvd|drive|terrace|highway|hwy|square)"
+             r"\.?(?=[ \t]*(?:$|[,.;|)\d]|<ADDRESS>))",
+             "<ADDRESS>", t, flags=re.MULTILINE)
+    # Continental style: "221B Rue Lafayette", "Rue de Rivoli", "Calle Mayor"
+    t = _sub(r"\b(?:\d{1,4}[A-Za-z]?,?\s+)?(?:Rue|RUE|Calle|CALLE|Avenida|AVENIDA|Viale|Piazza|Chemin)\s+"
+             r"(?:(?:de|du|des|la|le|del|di|da|von|van)\s+)?[A-Z][\w'’.-]*", "<ADDRESS>", t)
+    # German style: "Bergmannstraße 44" (street name and suffix are one word)
+    t = _sub(r"\b[A-ZÄÖÜ][a-zäöüß]+(?:straße|strasse|str\.|weg|platz|allee|gasse|ring)\s+\d{1,4}[a-z]?\b",
+             "<ADDRESS>", t)
+    # South-Asian style: "House B-47, Street 11, Gulshan Block 6" (unit + up to 5 comma parts)
+    t = _sub(r"\b(?:house|flat|plot|apt|apartment|villa|suite|unit)\s*(?:no\.?|#)?\s*[A-Z]?-?\d+[A-Za-z]?\b"
+             r"(?:,[^,\n|]{2,40}){0,5}", "<ADDRESS>", t, I)
+    # UK postcode: NW1 6XE, M1 1AE, SW1A 2AA (uppercase only)
+    t = _sub(r"(?<![\w-])[A-Z]{1,2}\d[A-Z\d]?\s?\d[A-Z]{2}(?!\w)", "<ADDRESS>", t)
+    # Canadian postal code: M5V 2T6
+    t = _sub(r"(?<![\w-])[A-Z]\d[A-Z]\s?\d[A-Z]\d(?!\w)", "<ADDRESS>", t)
+    # US "STATE ZIP": TX 78701, NY 10001-1234.  Only real state codes, so
+    # "CHEQUE NO 12345" is not mistaken for a ZIP code.
+    t = _sub(r"\b(?:AL|AK|AZ|AR|CA|CO|CT|DE|DC|FL|GA|HI|ID|IL|IN|IA|KS|KY|LA|ME|MD|MA|MI|MN|MS|MO|MT|NE|NV|NH|NJ|NM|NY|NC|ND|OH|OK|OR|PA|RI|SC|SD|TN|TX|UT|VT|VA|WA|WV|WI|WY)"
+             r"\s\d{5}(?:-\d{4})?\b", "<ADDRESS>", t)
+    # European "75009 Paris" / "10961 Berlin": a 5-digit postcode + capitalised city,
+    # but ONLY right after a comma, a line start or an <ADDRESS> already found,
+    # so "Transfer 25000 Hamza" is never touched.
+    t = _sub(r"(^|,\s*|<ADDRESS>,?\s*)\d{5}\s+[A-ZÀ-Ý][a-zà-ÿ]+(?:[- ][A-ZÀ-Ý][a-zà-ÿ]+)?",
+             r"\1<ADDRESS>", t, flags=re.MULTILINE)
     return t
