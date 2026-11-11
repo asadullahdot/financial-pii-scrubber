@@ -174,12 +174,12 @@ def _switch_model(client, ctx: dict, err: Exception) -> bool:
 
 
 def _chat_json(client, system: str, user: str, calls: list, ctx: dict, label: str = "",
-               max_tokens: int = EXTRACT_MAX_TOKENS) -> dict:
+               max_tokens: int = EXTRACT_MAX_TOKENS, history: list | None = None) -> dict:
     """One model call that must return a JSON object.
     ctx = {"model": str, "json_mode": bool} is shared across a run so a fallback
     decision (other model, no JSON mode) is made once.
     Retries: rate limits with back-off, unusable JSON once, a missing model once."""
-    messages = [{"role": "system", "content": system}, {"role": "user", "content": user}]
+    messages = [{"role": "system", "content": system}, *(history or []), {"role": "user", "content": user}]
     for parse_attempt in range(2):
         content, attempt = None, 0
         while attempt < MAX_RETRIES:
@@ -206,6 +206,9 @@ def _chat_json(client, system: str, user: str, calls: list, ctx: dict, label: st
                         if ctx["model"] == kwargs["model"]:
                             _switch_model(client, ctx, e)   # raises if nothing usable
                     continue                            # retry with the (new) model
+                if status == 400 and "json_validate_failed" in msg:
+                    content = ""                        # the model produced no valid JSON: handled by the parse retry
+                    break
                 if status == 400 and "response_format" in msg and ctx.get("json_mode", True):
                     ctx["json_mode"] = False            # model rejects JSON mode: rely on the prompt
                     continue

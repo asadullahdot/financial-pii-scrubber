@@ -9,6 +9,7 @@ text: it receives ScrubbedFile objects produced by engine.py.
     list_runs()                  newest runs first (no big text columns)
     save_analysis(...)           store a Groq analysis for a run
     get_latest_analysis(run_id)  newest analysis of a run, or None
+    add_chat_message / get_chat / clear_chat   chat turns of a run
     delete_run(run_id)           remove a run and everything attached to it
 
 Run `python -m app.db` once to create the tables.
@@ -114,6 +115,27 @@ def get_latest_analysis(run_id: int) -> dict | None:
                     FROM analyses WHERE run_id = :id ORDER BY created_at DESC, id DESC LIMIT 1"""),
             {"id": run_id}).mappings().first()
     return dict(row) if row else None
+
+
+def add_chat_message(run_id: int, role: str, content: str) -> int:
+    """Store one chat turn (the user's SCRUBBED question or the verified answer)."""
+    with engine.begin() as conn:
+        return conn.execute(text("INSERT INTO chat_messages (run_id, role, content) "
+                                 "VALUES (:r, :role, :c) RETURNING id"),
+                            {"r": run_id, "role": role, "c": content}).scalar_one()
+
+
+def get_chat(run_id: int) -> list[dict]:
+    """All chat turns of a run, oldest first."""
+    with engine.connect() as conn:
+        rows = conn.execute(text("SELECT id, created_at, role, content FROM chat_messages "
+                                 "WHERE run_id = :r ORDER BY id"), {"r": run_id}).mappings().all()
+    return [dict(r) for r in rows]
+
+
+def clear_chat(run_id: int) -> None:
+    with engine.begin() as conn:
+        conn.execute(text("DELETE FROM chat_messages WHERE run_id = :r"), {"r": run_id})
 
 
 def delete_run(run_id: int) -> bool:

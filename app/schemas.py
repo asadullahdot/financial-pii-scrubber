@@ -42,3 +42,37 @@ class AnalysisOut(BaseModel):
     prompt_version: str
     result: dict = Field(description="verified aggregates, insights and the verified transactions")
     validation: dict = Field(description="what the guardrails checked and dropped")
+
+
+class ChatIn(BaseModel):
+    question: str = Field(min_length=1, max_length=2000,
+                          description="Your question. Identifiers in it are scrubbed before anything is sent.")
+
+
+class ChatSource(BaseModel):
+    id: int
+    date: str
+    currency: str
+    amount: float
+    direction: str
+    category: str
+    merchant: str | None = None
+
+
+class ChatOut(BaseModel):
+    answer: str
+    verified: bool = Field(description="every number in the answer was checked against the data")
+    in_scope: bool
+    question_as_sent: str = Field(description="your question after scrubbing")
+    computed: dict = Field(description="the app's own totals over the cited rows, per currency")
+    sources: list[ChatSource] = Field(description="the transactions the answer is based on")
+    history_turns_used: int
+    attempts: int
+    unverified_numbers_caught: int
+
+
+class ChatMessageOut(BaseModel):
+    id: int
+    created_at: datetime
+    role: str
+    content: str

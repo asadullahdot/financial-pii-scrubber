@@ -37,8 +37,9 @@ from sqlalchemy import text
 from sqlalchemy.exc import SQLAlchemyError
 
 from app import analysis, db
+from app import chat as chatmod
 from app.engine import PROJECT_ROOT, ScrubbedFile, combine, scrub_files
-from app.schemas import AnalysisOut, FileOut, FolderRequest, Health, RunDetail, RunSummary
+from app.schemas import AnalysisOut, ChatIn, ChatMessageOut, ChatOut, FileOut, FolderRequest, Health, RunDetail, RunSummary
 from app.verifier import verify_clean
 
 MAX_FILES = 50
@@ -274,6 +275,52 @@ def get_analysis(run_id: int):
     if row is None:
         raise HTTPException(404, f"Run {run_id} has no analysis yet. POST to this URL to create one.")
     return _analysis_out(row)
+
+
+@app.post("/runs/{run_id}/chat", response_model=ChatOut, tags=["chat"])
+def chat(run_id: int, body: ChatIn):
+    """Ask a question about a run. Needs an analysis first (it supplies the verified transactions).
+
+    The question is scrubbed, answered from the stored transactions with a sliding window of
+    recent turns, and every number in the answer is checked in code before it is returned.
+    """
+    _get_or_404(run_id)
+    row = db.get_latest_analysis(run_id)
+    if row is None:
+        raise HTTPException(409, f"Run {run_id} has no analysis yet. POST /runs/{run_id}/analysis first.")
+    try:
+        question = chatmod.prepare_question(body.question)
+    except chatmod.ChatBlocked as e:
+        raise HTTPException(422, str(e))
+    except ValueError as e:
+        raise HTTPException(422, str(e))
+    try:
+        past = db.get_chat(run_id)
+        out = chatmod.answer_question(row["result"], past, question)
+    except analysis.DailyLimitReached as e:
+        raise HTTPException(429, str(e), headers={"X-Retry-In": e.retry_in or ""})
+    except analysis.AnalysisError as e:
+        raise HTTPException(503 if str(e).startswith("GROQ_API_KEY") else 502, str(e))
+    try:
+        db.add_chat_message(run_id, "user", question)
+        db.add_chat_message(run_id, "assistant", out["answer"])
+    except SQLAlchemyError:
+        raise HTTPException(503, "Database unavailable. Is PostgreSQL running?")
+    return ChatOut(question_as_sent=question, **{k: out[k] for k in (
+        "answer", "verified", "in_scope", "computed", "sources", "history_turns_used", "attempts",
+        "unverified_numbers_caught")})
+
+
+@app.get("/runs/{run_id}/chat", response_model=list[ChatMessageOut], tags=["chat"])
+def get_chat_history(run_id: int):
+    _get_or_404(run_id)
+    return db.get_chat(run_id)
+
+
+@app.delete("/runs/{run_id}/chat", status_code=204, tags=["chat"])
+def clear_chat(run_id: int):
+    _get_or_404(run_id)
+    db.clear_chat(run_id)
 
 
 @app.delete("/runs/{run_id}", status_code=204, tags=["runs"])
