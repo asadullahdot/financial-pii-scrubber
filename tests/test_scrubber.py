@@ -140,21 +140,11 @@ def test_wrapped_iban_is_rejoined():
 
 # ---------------------------------------------------------------- Layer 2
 # Generic: no known strings. Anything still matching is a probable leak.
-LEAK_PATTERNS = {
-    "email": r"[\w.+-]+@[\w-]+\.[\w.]+",
-    "payment handle": r"[\w.+-]+@[A-Za-z][\w-]*\b",
-    "long digits": r"(?<![\d.,])\d{8,}(?![\d]|[.,]\d)",
-    "iban-like": r"\b[A-Za-z]{2}\d{2}[A-Za-z0-9]{10,}\b",
-    "long mixed id": r"\b(?=[A-Za-z0-9]*\d)(?=[A-Za-z0-9]*[A-Za-z])[A-Za-z0-9]{12,}\b",
-    "intl phone": r"(?<![\w.,])\+\d[\d\s().-]{8,}\d(?!\.\d{2}\b)",
-    "ssn-like": r"\b\d{3}-\d{2}-\d{4}\b",
-    "cnic-like": r"\b\d{5}-\d{7}-\d\b",
-    "ipv4": r"(?<![\d.])(?:\d{1,3}\.){3}\d{1,3}(?![\d.])",
-}
+from app.verifier import LEAK_PATTERNS, find_leaks  # noqa: E402  (single source of truth)
 
 
 def leak_scan(text):
-    return {n: re.findall(p, text) for n, p in LEAK_PATTERNS.items() if re.findall(p, text)}
+    return find_leaks(text)
 
 
 @pytest.fixture(scope="session")

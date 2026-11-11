@@ -1,12 +1,18 @@
+# Web API
 fastapi
 uvicorn[standard]
 python-multipart
+# Database
 sqlalchemy
-psycopg2-binary
+psycopg[binary]
+python-dotenv
+# Reading statements
+pandas
+openpyxl
 pdfplumber
 python-docx
-openpyxl
-pandas
+# LLM (Steps 7-8)
 groq
-python-dotenv
-streamlit
+# Tests
+pytest
+httpx
