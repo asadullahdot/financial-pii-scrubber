@@ -30,7 +30,7 @@ import tempfile
 from contextlib import asynccontextmanager
 from pathlib import Path
 
-from fastapi import FastAPI, File, HTTPException, UploadFile
+from fastapi import FastAPI, File, HTTPException, Query, UploadFile
 from fastapi.responses import PlainTextResponse
 from fastapi.staticfiles import StaticFiles
 from sqlalchemy import text
@@ -232,8 +232,14 @@ def _analysis_out(row: dict) -> AnalysisOut:
 
 
 @app.post("/runs/{run_id}/analysis", response_model=AnalysisOut, status_code=201, tags=["analysis"])
-def create_analysis(run_id: int):
-    """Send the run's SCRUBBED text to Groq, verify what comes back, store it.
+def create_analysis(run_id: int, mode: str = Query(
+        None, description="hybrid (default): local parser first, model reads only what it cannot; "
+                          "llm: model reads every line; local: no model call at all.")):
+    """Analyse the run's SCRUBBED text, verify every row, store the result.
+
+    Default (hybrid): a local parser reads the clear transaction lines; the model reads only the
+    rest and writes insights.  If Groq is unavailable the analysis still completes locally and
+    `validation.llm_problem` says why.
 
     Safety: the text is re-checked by the verifier first (HTTP 422, nothing sent,
     if it fails); every extracted transaction is checked against the statement;
@@ -242,11 +248,15 @@ def create_analysis(run_id: int):
     run = _get_or_404(run_id)
     files = [(f["filename"], f["scrubbed_text"]) for f in run["files"]]
     try:
-        result, validation = analysis.analyze_files(files)
+        result, validation = analysis.analyze_files(files, mode=mode)
     except analysis.AnalysisBlocked as e:
         raise HTTPException(422, detail={
             "message": "Blocked: the stored text still looks like it contains identifiers, "
                        "so NOTHING was sent to Groq.", "findings": e.findings})
+    except ValueError as e:                              # unknown mode
+        raise HTTPException(422, str(e))
+    except analysis.DailyLimitReached as e:
+        raise HTTPException(429, str(e), headers={"X-Retry-In": e.retry_in or ""})
     except analysis.AnalysisError as e:
         code = 503 if str(e).startswith("GROQ_API_KEY") else 502
         raise HTTPException(code, str(e))
